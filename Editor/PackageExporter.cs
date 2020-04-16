@@ -18,8 +18,8 @@ namespace StansAssets.PackageExport.Editor
         private static ListRequest ListPackagesRequest;
         private static List<UnityEditor.PackageManager.PackageInfo> ListPackages;
         private static string _packageName;
-		private static string _packageDestination; 
-		private  static PackageExportContext _context;
+        private static string _packageDestination;
+        private static PackageExportContext _context;
 
         /// <summary>
         /// Export package as <c>.unitypackage</c>
@@ -29,9 +29,9 @@ namespace StansAssets.PackageExport.Editor
         public static void Export(string packageName, string packageDestination, PackageExportContext context)
         {
             ListPackages = new List<UnityEditor.PackageManager.PackageInfo>();
-			_packageName = packageName;
-			_packageDestination = packageDestination;
-			_context = context;
+            _packageName = packageName;
+            _packageDestination = packageDestination;
+            _context = context;
 
             ListPackagesRequest = Client.List();    // List packages installed for the Project
             EditorApplication.update += GetListPackages;
@@ -40,39 +40,42 @@ namespace StansAssets.PackageExport.Editor
         {
             if (ListPackagesRequest.IsCompleted)
             {
-                if (ListPackagesRequest.Status == StatusCode.Success){
+                if (ListPackagesRequest.Status == StatusCode.Success)
+                {
                     foreach (var package in ListPackagesRequest.Result)
                     {
                         //Debug.Log("Package name: " + package.name);
                         ListPackages.Add(package);
                     }
-					ExportPack(_packageName, _packageDestination, _context);
-				}
+                    ExportPack(_packageName, _packageDestination, _context);
+                }
                 else if (ListPackagesRequest.Status >= StatusCode.Failure)
                     Debug.Log(ListPackagesRequest.Error.message);
 
                 EditorApplication.update -= GetListPackages;
             }
         }
-		private static void ExportPack(string packageName, string packageDestination, PackageExportContext context)
+        private static void ExportPack(string packageName, string packageDestination, PackageExportContext context)
         {
-			EditorApplication.update -= GetListPackages;
+            EditorApplication.update -= GetListPackages;
             Debug.Log(packageName);
             var pack = ListPackages.Where(p => p.name == packageName).ToList();
 
             if (pack.Count < 0)
                 throw new InvalidOperationException("Package name not found in project");
 
-           //this.DirectoryCopy(pack[0].resolvedPath, packageDestination+"/"+packageName, true);
+            DirectoryCopy(pack[0].resolvedPath, packageDestination + "/" + packageName, true);
+            AssetDatabase.Refresh();
 
-			string name = context.Name;
-			if(context.AddPackageVersionPostfix) {
-				name+=Assembly.GetExecutingAssembly().GetName().Version;
-			}
-			string s = packageDestination+"/"+packageName;
-			//AssetDatabase.ExportPackage(s, name, ExportPackageOptions.Default);
-			 AssetDatabase.ExportPackage(new string[] {"Assets", pack[0].resolvedPath}, name + ".unitypackage", ExportPackageOptions.Interactive | ExportPackageOptions.Recurse | ExportPackageOptions.IncludeDependencies);
-			Debug.Log(name+".unitypackage export to "+ context.Destination);
+            string name = context.Name;
+            if (context.AddPackageVersionPostfix)
+            {
+                name += Assembly.GetExecutingAssembly().GetName().Version;
+            }
+            string path = context.Destination + "/" + name + ".unitypackage";
+            //AssetDatabase.ExportPackage(s, name, ExportPackageOptions.Default);
+            AssetDatabase.ExportPackage(new string[] { "Assets" }, path, ExportPackageOptions.Interactive | ExportPackageOptions.Recurse | ExportPackageOptions.IncludeDependencies);
+            Debug.Log(name + ".unitypackage export");
         }
 
         private static void DirectoryCopy(string sourceDirName, string destDirName, bool copySubDirs)
