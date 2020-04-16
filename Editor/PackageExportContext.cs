@@ -5,7 +5,18 @@ namespace StansAssets.PackageExport.Editor
     /// </summary>
     public class PackageExportContext
     {
-        string m_Destination;
+        private string m_Destination;
+
+        // <summary>
+        /// The <c>*.unitypackage</c> install destination
+        /// </summary>
+        public string Destination { get { return m_Destination; } }
+        private string m_name;
+
+        // <summary>
+        /// Get <c>.unitypackage</c> name
+        /// </summary>
+        public string Name { get { return m_name; } }
 
         /// <summary>
         /// If set to <c>true</c> package version postfix is added. Example: <c>MyAwesomeAsset_v3.2.unitypackage</c>
@@ -22,6 +33,7 @@ namespace StansAssets.PackageExport.Editor
         public PackageExportContext(string name, string destination)
         {
             m_Destination = destination;
+            m_name = name;
         }
 
         /// <summary>

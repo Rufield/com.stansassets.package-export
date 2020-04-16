@@ -1,71 +1,117 @@
 using System;
+using System.IO;
 using System.Linq;
-using StansAssets.Foundation.Editor;
 using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEditor.PackageManager.Requests;
 using UnityEngine;
+using System.Collections.Generic;
+using System.Reflection;
 
 namespace StansAssets.PackageExport.Editor
 {
-	/// <summary>
-	/// Use to export package as <c>.unitypackage</c>
-	/// </summary>
-	public static class PackageExporter
-	{
-		static SearchRequest s_ActiveSearchRequest;
-		static string s_ExportDestination;
+    /// <summary>
+    /// Use to export package as <c>.unitypackage</c>
+    /// </summary>
+    public static class PackageExporter
+    {
+        private static ListRequest ListPackagesRequest;
+        private static List<UnityEditor.PackageManager.PackageInfo> ListPackages;
+        private static string _packageName;
+		private static string _packageDestination; 
+		private  static PackageExportContext _context;
 
-		/// <summary>
-		/// Export package as <c>.unitypackage</c>
-		/// </summary>
-		/// <param name="packageName">Package name. For example: <c>com.stansassets.package-export</c>. </param>
-		/// <param name="context">Package export context. See <see cref="PackageExportContext"/> for details.</param>
-		public static void Export(string packageName, PackageExportContext context)
-		{
-			Debug.Log(packageName);
-			if(s_ActiveSearchRequest != null)
-				throw new InvalidOperationException("Another export in progress");
+        /// <summary>
+        /// Export package as <c>.unitypackage</c>
+        /// </summary>
+        /// <param name="packageName">Package name. For example: <c>com.stansassets.package-export</c>. </param>
+        /// <param name="context">Package export context. See <see cref="PackageExportContext"/> for details.</param>
+        public static void Export(string packageName, string packageDestination, PackageExportContext context)
+        {
+            ListPackages = new List<UnityEditor.PackageManager.PackageInfo>();
+			_packageName = packageName;
+			_packageDestination = packageDestination;
+			_context = context;
 
-			var packageInfo = PackageManagerUtility.GetPackageInfo(packageName);
-			Debug.Log(packageInfo.assetPath);
+            ListPackagesRequest = Client.List();    // List packages installed for the Project
+            EditorApplication.update += GetListPackages;
+        }
+        static void GetListPackages()
+        {
+            if (ListPackagesRequest.IsCompleted)
+            {
+                if (ListPackagesRequest.Status == StatusCode.Success){
+                    foreach (var package in ListPackagesRequest.Result)
+                    {
+                        //Debug.Log("Package name: " + package.name);
+                        ListPackages.Add(package);
+                    }
+					ExportPack(_packageName, _packageDestination, _context);
+				}
+                else if (ListPackagesRequest.Status >= StatusCode.Failure)
+                    Debug.Log(ListPackagesRequest.Error.message);
 
-			AssetDatabase.CopyAsset(packageInfo.assetPath + "/Test/test1.json", "Assets/test1.json");
-			//AssetDatabase.Refresh();
-			AssetDatabase.ExportPackage("Assets/test1.json", "my_export.unitypackage", ExportPackageOptions.Default);
-			AssetDatabase.DeleteAsset("Assets/test1.json");
+                EditorApplication.update -= GetListPackages;
+            }
+        }
+		private static void ExportPack(string packageName, string packageDestination, PackageExportContext context)
+        {
+			EditorApplication.update -= GetListPackages;
+            Debug.Log(packageName);
+            var pack = ListPackages.Where(p => p.name == packageName).ToList();
 
-			/*
-			s_ExportDestination = destination;
-			s_ActiveSearchRequest =  Client.Search(packageName, true);
-			EditorApplication.update += OnEditorApplication;*/
-		}
+            if (pack.Count < 0)
+                throw new InvalidOperationException("Package name not found in project");
 
-		static void OnEditorApplication()
-		{
-			 if (s_ActiveSearchRequest.IsCompleted)
-			 {
-				 if (s_ActiveSearchRequest.Status == StatusCode.Success)
-					 Export();
-				 else if (s_ActiveSearchRequest.Status >= StatusCode.Failure)
-					 Debug.LogError($"Export Failed: {s_ActiveSearchRequest.Error.message} Code: {s_ActiveSearchRequest.Error.errorCode}");
-				 else
-					 Debug.LogError($"Unsupported progress state {s_ActiveSearchRequest.Status}");
-				 OnFinalize();
-			 }
-		}
+           //this.DirectoryCopy(pack[0].resolvedPath, packageDestination+"/"+packageName, true);
 
-		static void OnFinalize()
-		{
-			s_ExportDestination = null;
-			EditorApplication.update -= OnEditorApplication;
-		}
+			string name = context.Name;
+			if(context.AddPackageVersionPostfix) {
+				name+=Assembly.GetExecutingAssembly().GetName().Version;
+			}
+			string s = packageDestination+"/"+packageName;
+			//AssetDatabase.ExportPackage(s, name, ExportPackageOptions.Default);
+			 AssetDatabase.ExportPackage(new string[] {"Assets", pack[0].resolvedPath}, name + ".unitypackage", ExportPackageOptions.Interactive | ExportPackageOptions.Recurse | ExportPackageOptions.IncludeDependencies);
+			Debug.Log(name+".unitypackage export to "+ context.Destination);
+        }
 
-		static void Export()
-		{
-			var packageInfo = s_ActiveSearchRequest.Result.First();
-			Debug.Log(packageInfo.assetPath);
-		}
-	}
+        private static void DirectoryCopy(string sourceDirName, string destDirName, bool copySubDirs)
+        {
+            // Get the subdirectories for the specified directory.
+            DirectoryInfo dir = new DirectoryInfo(sourceDirName);
+
+            if (!dir.Exists)
+            {
+                throw new DirectoryNotFoundException(
+                    "Source directory does not exist or could not be found: "
+                    + sourceDirName);
+            }
+
+            DirectoryInfo[] dirs = dir.GetDirectories();
+            // If the destination directory doesn't exist, create it.
+            if (!Directory.Exists(destDirName))
+            {
+                Directory.CreateDirectory(destDirName);
+            }
+
+            // Get the files in the directory and copy them to the new location.
+            FileInfo[] files = dir.GetFiles();
+            foreach (FileInfo file in files)
+            {
+                string temppath = Path.Combine(destDirName, file.Name);
+                file.CopyTo(temppath, false);
+            }
+
+            // If copying subdirectories, copy them and their contents to new location.
+            if (copySubDirs)
+            {
+                foreach (DirectoryInfo subdir in dirs)
+                {
+                    string temppath = Path.Combine(destDirName, subdir.Name);
+                    DirectoryCopy(subdir.FullName, temppath, copySubDirs);
+                }
+            }
+        }
+    }
 }
 
