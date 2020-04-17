@@ -36,7 +36,7 @@ namespace StansAssets.PackageExport.Editor
             EditorApplication.update += GetListPackages;
         }
         /// <summary>
-        /// Export package as <c>.unitypackage</c>
+        /// Waiting for a list of packages from the package manager
         /// </summary>
         private static void GetListPackages()
         {
@@ -46,7 +46,6 @@ namespace StansAssets.PackageExport.Editor
                 {
                     foreach (var package in ListPackagesRequest.Result)
                     {
-                        //Debug.Log("Package name: " + package.name);
                         ListPackages.Add(package);
                     }
                     ExportPack(_packageName, _context);
@@ -64,11 +63,12 @@ namespace StansAssets.PackageExport.Editor
         {
             EditorApplication.update -= GetListPackages;
             Debug.Log(packageName);
-            
+            /**find the package you need */
             var pack = ListPackages.Where(p => p.name == packageName).ToList();
-
+            /**Package name not found in project */
             if (pack.Count < 0)
                 throw new InvalidOperationException("Package name not found in project");
+            /**Copy package to Asset */
             string copyDestination = context.Destination + "/" + packageName;
             DirectoryCopy(pack[0].resolvedPath, copyDestination, true);
             AssetDatabase.Refresh();
@@ -76,18 +76,21 @@ namespace StansAssets.PackageExport.Editor
             string name = context.Name;
             if (context.AddPackageVersionPostfix)
             {
-                name += Assembly.GetExecutingAssembly().GetName().Version;
+                //name += Assembly.GetExecutingAssembly().GetName().Version;
+                name += pack[0].version;
             }
             string path = context.Destination + "/" + name + ".unitypackage";
-
-            AssetDatabase.ExportPackage(new string[] { context.Destination }, path,  ExportPackageOptions.Recurse | ExportPackageOptions.IncludeDependencies);
+            /** Export Package */
+            AssetDatabase.ExportPackage(new string[] { context.Destination }, path, ExportPackageOptions.Recurse | ExportPackageOptions.IncludeDependencies);
             Debug.Log(path + " exported");
-
-            FileUtil.DeleteFileOrDirectory(copyDestination);
-            AssetDatabase.Refresh();
+            /** Delete a copied package */
+            AssetDatabase.DeleteAsset(copyDestination);
+            //string itemPath = context.Destination.Replace(@"/", @"\");// explorer doesn't like front slashes
+            // itemPath+=@"\";   
+            // System.Diagnostics.Process.Start("explorer.exe", "/select," + itemPath);
         }
         /// <summary>
-        /// Export package as <c>.unitypackage</c>
+        /// Copy directory
         /// </summary>
         private static void DirectoryCopy(string sourceDirName, string destDirName, bool copySubDirs)
         {
