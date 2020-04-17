@@ -79,7 +79,7 @@ namespace StansAssets.PackageExport.Editor
                     AddPackageVersionPostfix = true
                 };
 
-                PackageExporter.Export(ListPackages[PackageIndex], Path, context);
+                PackageExporter.Export(ListPackages[PackageIndex], context);
             }
 
         }

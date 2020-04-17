@@ -7,6 +7,7 @@ using UnityEditor.PackageManager.Requests;
 using UnityEngine;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Threading;
 
 namespace StansAssets.PackageExport.Editor
 {
@@ -18,7 +19,6 @@ namespace StansAssets.PackageExport.Editor
         private static ListRequest ListPackagesRequest;
         private static List<UnityEditor.PackageManager.PackageInfo> ListPackages;
         private static string _packageName;
-        private static string _packageDestination;
         private static PackageExportContext _context;
 
         /// <summary>
@@ -26,17 +26,19 @@ namespace StansAssets.PackageExport.Editor
         /// </summary>
         /// <param name="packageName">Package name. For example: <c>com.stansassets.package-export</c>. </param>
         /// <param name="context">Package export context. See <see cref="PackageExportContext"/> for details.</param>
-        public static void Export(string packageName, string packageDestination, PackageExportContext context)
+        public static void Export(string packageName, PackageExportContext context)
         {
             ListPackages = new List<UnityEditor.PackageManager.PackageInfo>();
             _packageName = packageName;
-            _packageDestination = packageDestination;
             _context = context;
 
             ListPackagesRequest = Client.List();    // List packages installed for the Project
             EditorApplication.update += GetListPackages;
         }
-        static void GetListPackages()
+        /// <summary>
+        /// Export package as <c>.unitypackage</c>
+        /// </summary>
+        private static void GetListPackages()
         {
             if (ListPackagesRequest.IsCompleted)
             {
@@ -47,7 +49,7 @@ namespace StansAssets.PackageExport.Editor
                         //Debug.Log("Package name: " + package.name);
                         ListPackages.Add(package);
                     }
-                    ExportPack(_packageName, _packageDestination, _context);
+                    ExportPack(_packageName, _context);
                 }
                 else if (ListPackagesRequest.Status >= StatusCode.Failure)
                     Debug.Log(ListPackagesRequest.Error.message);
@@ -55,16 +57,20 @@ namespace StansAssets.PackageExport.Editor
                 EditorApplication.update -= GetListPackages;
             }
         }
-        private static void ExportPack(string packageName, string packageDestination, PackageExportContext context)
+        /// <summary>
+        /// Export package as <c>.unitypackage</c>
+        /// </summary>
+        private static void ExportPack(string packageName, PackageExportContext context)
         {
             EditorApplication.update -= GetListPackages;
             Debug.Log(packageName);
+            
             var pack = ListPackages.Where(p => p.name == packageName).ToList();
 
             if (pack.Count < 0)
                 throw new InvalidOperationException("Package name not found in project");
-
-            DirectoryCopy(pack[0].resolvedPath, packageDestination + "/" + packageName, true);
+            string copyDestination = context.Destination + "/" + packageName;
+            DirectoryCopy(pack[0].resolvedPath, copyDestination, true);
             AssetDatabase.Refresh();
 
             string name = context.Name;
@@ -73,11 +79,16 @@ namespace StansAssets.PackageExport.Editor
                 name += Assembly.GetExecutingAssembly().GetName().Version;
             }
             string path = context.Destination + "/" + name + ".unitypackage";
-            //AssetDatabase.ExportPackage(s, name, ExportPackageOptions.Default);
-            AssetDatabase.ExportPackage(new string[] { "Assets" }, path, ExportPackageOptions.Interactive | ExportPackageOptions.Recurse | ExportPackageOptions.IncludeDependencies);
-            Debug.Log(name + ".unitypackage export");
-        }
 
+            AssetDatabase.ExportPackage(new string[] { context.Destination }, path,  ExportPackageOptions.Recurse | ExportPackageOptions.IncludeDependencies);
+            Debug.Log(path + " exported");
+
+            FileUtil.DeleteFileOrDirectory(copyDestination);
+            AssetDatabase.Refresh();
+        }
+        /// <summary>
+        /// Export package as <c>.unitypackage</c>
+        /// </summary>
         private static void DirectoryCopy(string sourceDirName, string destDirName, bool copySubDirs)
         {
             // Get the subdirectories for the specified directory.

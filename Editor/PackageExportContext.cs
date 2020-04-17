@@ -11,6 +11,7 @@ namespace StansAssets.PackageExport.Editor
         /// The <c>*.unitypackage</c> install destination
         /// </summary>
         public string Destination { get { return m_Destination; } }
+        
         private string m_name;
 
         // <summary>
